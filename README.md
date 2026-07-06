@@ -1,11 +1,50 @@
+# App Igrejas
 
-  # Aplicativo de Igreja Cristã
+Plataforma SaaS multi-igreja com app mobile, painel administrativo e triagem pastoral com IA.
 
-  This is a code bundle for Aplicativo de Igreja Cristã. The original project is available at https://www.figma.com/design/vQTCiI9XRRdpdQDaQ5ilFp/Aplicativo-de-Igreja-Crist%C3%A3.
+## Estrutura
 
-  ## Running the code
+```
+AppIgrejas/
+├── apps/
+│   ├── admin/          # Painel web administrativo (React + Vite)
+│   └── mobile/         # App mobile (Expo + React Native)
+├── packages/
+│   ├── types/          # Tipos TypeScript compartilhados
+│   ├── utils/          # Utilitários compartilhados
+│   ├── ui/             # Componentes UI compartilhados
+│   └── api-contracts/  # Contratos de API (Supabase client)
+├── supabase/
+│   ├── migrations/     # Migrações SQL versionadas
+│   └── seeds/          # Dados iniciais
+├── n8n/
+│   └── workflows/      # Fluxos de automação
+└── docs/
+    ├── product/        # Documentação do produto
+    ├── architecture/   # Decisões arquiteturais
+    └── prompts/        # Prompts para IA
+```
 
-  Run `npm i` to install the dependencies.
+## Stack
 
-  Run `npm run dev` to start the development server.
-  
+- **Mobile**: Expo + React Native + TypeScript
+- **Admin**: React + Vite + TypeScript + Tailwind
+- **Backend**: Supabase (PostgreSQL, Auth, Storage, RLS)
+- **Automação**: n8n
+
+## Desenvolvimento
+
+```bash
+# Instalar dependências
+npm install
+
+# Desenvolvimento do admin
+npm run dev:admin
+
+# Build do admin
+npm run build:admin
+```
+
+## Migrações
+
+As migrações SQL estão em `supabase/migrations/` e devem ser aplicadas via Supabase CLI ou dashboard.
