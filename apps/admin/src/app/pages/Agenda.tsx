@@ -1,15 +1,60 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronLeft, Calendar as CalendarIcon, Clock, MapPin } from "lucide-react";
+import { Calendar, Clock, MapPin } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth-context";
 
-const events = [
-  { id: "1", date: "15 Set", day: "Domingo", title: "Culto de Celebração", time: "10:00 - 11:30", loc: "Templo Principal", type: "Culto" },
-  { id: "2", date: "15 Set", day: "Domingo", title: "Culto de Celebração", time: "18:00 - 19:30", loc: "Templo Principal", type: "Culto" },
-  { id: "3", date: "18 Set", day: "Quarta", title: "Reunião de Oração", time: "20:00 - 21:00", loc: "Capela", type: "Oração" },
-  { id: "4", date: "21 Set", day: "Sábado", title: "Encontro de Jovens", time: "19:30 - 21:30", loc: "Espaço Jovem", type: "Jovens" },
-];
+type Event = {
+  id: string;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string | null;
+  location: string | null;
+  category: string | null;
+  image_url: string | null;
+  description: string | null;
+};
+
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 export function Agenda() {
   const navigate = useNavigate();
+  const { churchUser } = useAuth();
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [monthIndex, setMonthIndex] = useState(new Date().getMonth());
+
+  useEffect(() => {
+    if (!churchUser) return;
+    setLoading(true);
+
+    const startDate = new Date(new Date().getFullYear(), monthIndex, 1).toISOString().split("T")[0];
+    const endDate = new Date(new Date().getFullYear(), monthIndex + 1, 0).toISOString().split("T")[0];
+
+    supabase
+      .from("events")
+      .select("id, title, date, start_time, end_time, location, category, image_url, description")
+      .eq("church_id", churchUser.church_id)
+      .eq("status", "published")
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: true })
+      .then(({ data }) => {
+        if (data) setEvents(data);
+        setLoading(false);
+      });
+  }, [churchUser, monthIndex]);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    return {
+      dayName: dayNames[d.getDay()],
+      day: String(d.getDate()).padStart(2, "0"),
+      month: MONTHS[d.getMonth()],
+    };
+  };
 
   return (
     <div className="flex flex-col min-h-full bg-slate-50">
@@ -19,41 +64,64 @@ export function Agenda() {
       </header>
 
       <div className="p-5 space-y-6">
-        {/* Month selector simple mock */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-          {['Setembro', 'Outubro', 'Novembro'].map((m, i) => (
-            <button key={m} className={`px-5 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${i === 0 ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
+          {MONTHS.map((m, i) => (
+            <button
+              key={m}
+              onClick={() => setMonthIndex(i)}
+              className={`px-5 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                i === monthIndex ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
               {m}
             </button>
           ))}
         </div>
 
         <div className="space-y-4">
-          {events.map(ev => (
-            <div 
-              key={ev.id}
-              onClick={() => navigate(`/app/agenda/${ev.id}`)}
-              className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-4 cursor-pointer active:scale-[0.98] transition-transform"
-            >
-              <div className="flex flex-col items-center justify-center w-16 bg-slate-50 rounded-xl border border-slate-100 shrink-0">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{ev.day.substring(0,3)}</span>
-                <span className="text-xl font-serif text-slate-900 mt-1">{ev.date.split(' ')[0]}</span>
-              </div>
-              <div className="flex-1 py-1">
-                <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-medium text-slate-800">{ev.title}</h3>
-                </div>
-                <div className="space-y-1.5 mt-2">
-                  <div className="flex items-center text-slate-500 text-xs">
-                    <Clock size={14} className="mr-2 text-slate-400" /> {ev.time}
-                  </div>
-                  <div className="flex items-center text-slate-500 text-xs">
-                    <MapPin size={14} className="mr-2 text-slate-400" /> {ev.loc}
-                  </div>
-                </div>
-              </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
             </div>
-          ))}
+          ) : events.length === 0 ? (
+            <p className="text-center text-slate-400 py-12">Nenhum evento neste mês.</p>
+          ) : (
+            events.map(ev => {
+              const { dayName, day, month } = formatDate(ev.date);
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => navigate(`/app/agenda/${ev.id}`)}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-4 cursor-pointer active:scale-[0.98] transition-transform"
+                >
+                  <div className="flex flex-col items-center justify-center w-16 bg-slate-50 rounded-xl border border-slate-100 shrink-0">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{dayName}</span>
+                    <span className="text-xl font-serif text-slate-900 mt-1">{day}</span>
+                  </div>
+                  <div className="flex-1 py-1">
+                    <div className="flex justify-between items-start mb-1">
+                      <h3 className="font-medium text-slate-800">{ev.title}</h3>
+                      {ev.category && (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                          {ev.category}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 mt-2">
+                      <div className="flex items-center text-slate-500 text-xs">
+                        <Clock size={14} className="mr-2 text-slate-400" /> {ev.start_time.slice(0, 5)}{ev.end_time ? ` - ${ev.end_time.slice(0, 5)}` : ""}
+                      </div>
+                      {ev.location && (
+                        <div className="flex items-center text-slate-500 text-xs">
+                          <MapPin size={14} className="mr-2 text-slate-400" /> {ev.location}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

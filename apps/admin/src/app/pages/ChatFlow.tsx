@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { ChevronLeft, Send, Bot, User, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth-context";
 
 type Message = {
   id: string;
@@ -12,52 +14,87 @@ type Message = {
 
 export function ChatFlow() {
   const navigate = useNavigate();
+  const { profile, churchUser } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', text: 'Olá! Sou a assistente de acolhimento da Comunidade Vida. Como posso ajudar você hoje?', sender: 'bot' }
+    { id: '1', text: 'Olá! Sou a assistente de acolhimento. Como posso ajudar você hoje?', sender: 'bot' }
   ]);
   const [input, setInput] = useState('');
+  const [caseCreated, setCaseCreated] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Mock flow logic
-  const handleSend = (e: React.FormEvent) => {
+  const getTriageLevel = (text: string): { level: 'green' | 'yellow' | 'red'; response: string } => {
+    const lower = text.toLowerCase();
+    if (lower.includes('desespero') || lower.includes('suicídio') || lower.includes('urgente') || lower.includes('socorro') || lower.includes('morrer')) {
+      return {
+        level: 'red',
+        response: 'Por favor, saiba que você não está sozinho(a). Estou notificando nossa equipe pastoral de plantão agora mesmo para que entrem em contato com urgência. Se for uma emergência médica ou risco de vida, ligue 188 (CVV) ou 192.'
+      };
+    }
+    if (lower.includes('triste') || lower.includes('oração') || lower.includes('conselho') || lower.includes('dificuldade') || lower.includes('ansiedade') || lower.includes('depressão')) {
+      return {
+        level: 'yellow',
+        response: 'Sinto muito que esteja passando por isso. Gostaria de conversar com um de nossos conselheiros pastorais? Posso encaminhar seu contato.'
+      };
+    }
+    if (lower.includes('horário') || lower.includes('culto') || lower.includes('endereço') || lower.includes('informação')) {
+      return {
+        level: 'green',
+        response: 'Nossos cultos acontecem aos Domingos às 10h e 18h. Precisa de mais alguma informação geral?'
+      };
+    }
+    return {
+      level: 'green',
+      response: 'Compreendo. Você gostaria de falar com nossa equipe pastoral sobre isso?'
+    };
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || !profile || !churchUser) return;
 
     const userMsg = input.trim();
     setMessages(prev => [...prev, { id: Date.now().toString(), text: userMsg, sender: 'user' }]);
     setInput('');
 
-    // Triage Logic Mock based on keywords
-    setTimeout(() => {
-      const lower = userMsg.toLowerCase();
-      if (lower.includes('horário') || lower.includes('culto') || lower.includes('endereço')) {
-        setMessages(prev => [...prev, { 
-          id: Date.now().toString(), 
-          text: 'Nossos cultos acontecem aos Domingos às 10h e 18h. Precisa de mais alguma informação geral?', 
-          sender: 'bot', 
-          triageLevel: 'green' 
-        }]);
-      } else if (lower.includes('triste') || lower.includes('oração') || lower.includes('conselho') || lower.includes('dificuldade')) {
-        setMessages(prev => [...prev, { 
-          id: Date.now().toString(), 
-          text: 'Sinto muito que esteja passando por isso. Gostaria de conversar com um de nossos conselheiros pastorais? Posso encaminhar seu contato.', 
-          sender: 'bot', 
-          triageLevel: 'yellow' 
-        }]);
-      } else if (lower.includes('desespero') || lower.includes('suicídio') || lower.includes('urgente') || lower.includes('socorro')) {
-        setMessages(prev => [...prev, { 
-          id: Date.now().toString(), 
-          text: 'Por favor, saiba que você não está sozinho(a). Estou notificando nossa equipe pastoral de plantão agora mesmo para que entrem em contato com urgência. Se for uma emergência médica ou risco de vida, ligue 188 (CVV) ou 192.', 
-          sender: 'bot', 
-          triageLevel: 'red' 
-        }]);
-      } else {
-        setMessages(prev => [...prev, { 
-          id: Date.now().toString(), 
-          text: 'Compreendo. Você gostaria de falar com nossa equipe pastoral sobre isso?', 
-          sender: 'bot', 
-          triageLevel: 'green' 
-        }]);
+    const { level, response } = getTriageLevel(userMsg);
+
+    setTimeout(async () => {
+      const botMsgId = Date.now().toString();
+      setMessages(prev => [...prev, {
+        id: botMsgId,
+        text: response,
+        sender: 'bot',
+        triageLevel: level
+      }]);
+
+      if (!caseCreated) {
+        setCaseCreated(true);
+
+        const { data: careCase } = await supabase.from('care_cases').insert({
+          church_id: churchUser.church_id,
+          user_id: profile.id,
+          status: 'open',
+          priority: level,
+          subject: `Triagem: ${userMsg.slice(0, 80)}`,
+          description: userMsg,
+        }).select().single();
+
+        if (careCase) {
+          await supabase.from('triage_assessments').insert({
+            care_case_id: careCase.id,
+            classification: level,
+            summary: response,
+            risk_indicators: [],
+            ai_confidence: 0.85,
+          });
+
+          const priority_hint = level === 'red' ? ' (Prioridade Alta)' : level === 'yellow' ? ' (Atenção Pastoral)' : '';
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            text: `Seu caso foi registrado${priority_hint}. Nossa equipe pastoral entrará em contato em breve.`,
+            sender: 'bot',
+          }]);
+        }
       }
     }, 1000);
   };
@@ -89,12 +126,12 @@ export function ChatFlow() {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>
         <div className="text-center text-xs text-slate-400 my-4 font-medium uppercase tracking-wider">Hoje</div>
-        
+
         {messages.map((msg) => (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            key={msg.id} 
+            key={msg.id}
             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.sender === 'bot' && (
@@ -102,15 +139,14 @@ export function ChatFlow() {
                 <Bot size={16} className="text-blue-600" />
               </div>
             )}
-            
+
             <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-              msg.sender === 'user' 
-                ? 'bg-slate-900 text-white rounded-br-sm' 
+              msg.sender === 'user'
+                ? 'bg-slate-900 text-white rounded-br-sm'
                 : 'bg-white border border-slate-100 shadow-sm text-slate-800 rounded-bl-sm'
             }`}>
               <p className="text-[15px] leading-relaxed">{msg.text}</p>
-              
-              {/* Triage indicator */}
+
               {msg.triageLevel && (
                 <div className={`mt-3 pt-3 border-t text-xs flex items-center gap-1.5 font-medium ${
                   msg.triageLevel === 'green' ? 'border-emerald-100 text-emerald-600' :
@@ -143,7 +179,7 @@ export function ChatFlow() {
             placeholder="Digite sua mensagem..."
             className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-5 py-3.5 focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
           />
-          <button 
+          <button
             type="submit"
             disabled={!input.trim()}
             className="w-12 h-12 bg-amber-500 text-slate-900 rounded-full flex items-center justify-center disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-400 transition-colors shrink-0"

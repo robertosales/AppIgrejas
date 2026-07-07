@@ -27,6 +27,7 @@ export default defineConfig({
       '@appigrejas/ui': path.resolve(__dirname, '../../packages/ui/src'),
       '@appigrejas/types': path.resolve(__dirname, '../../packages/types/src'),
       '@appigrejas/utils': path.resolve(__dirname, '../../packages/utils/src'),
+      '@appigrejas/api-contracts': path.resolve(__dirname, '../../packages/api-contracts/src'),
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
