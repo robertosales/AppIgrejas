@@ -1,57 +1,45 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronLeft, Building2, CreditCard, Users, Shield, UserPlus } from "lucide-react";
+import { ChevronLeft, Building2, CreditCard, Users, Shield, UserPlus, AlertCircle } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../lib/auth-context";
-
-type ChurchInfo = {
-  name: string;
-  slug: string;
-  email: string | null;
-  phone: string | null;
-  max_members: number;
-  status: string;
-};
-
-type SubscriptionInfo = {
-  plan_name: string;
-  status: string;
-  max_members: number;
-  features: string[];
-};
-
-type ChurchUser = {
-  user_id: string;
-  email: string;
-  full_name: string;
-  role: string;
-};
 
 export function AdminSettings() {
   const navigate = useNavigate();
   const { churchUser } = useAuth();
-  const [church, setChurch] = useState<ChurchInfo | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [members, setMembers] = useState<ChurchUser[]>([]);
+  const [church, setChurch] = useState<any>(null);
+  const [subscription, setSubscription] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
 
   useEffect(() => {
-    if (!churchUser) return;
+    if (!churchUser) {
+      setLoading(false);
+      setError("Usuário não vinculado a nenhuma igreja. Contate o administrador.");
+      return;
+    }
     loadData();
   }, [churchUser]);
 
   async function loadData() {
+    setError(null);
     const churchId = churchUser!.church_id;
 
-    const { data: churchData } = await supabase
+    const { data: churchData, error: churchErr } = await supabase
       .from("churches")
       .select("name, slug, email, phone, max_members, status")
       .eq("id", churchId)
       .single();
 
-    if (churchData) setChurch(churchData);
+    if (churchErr) {
+      setError("Erro ao carregar dados da igreja: " + churchErr.message);
+      setLoading(false);
+      return;
+    }
+    setChurch(churchData);
 
     const { data: subData } = await supabase
       .from("subscriptions")
@@ -60,13 +48,8 @@ export function AdminSettings() {
       .maybeSingle();
 
     if (subData) {
-      const plan = subData.subscription_plans as unknown as { name: string; max_members: number; features: string[] };
-      setSubscription({
-        plan_name: plan.name,
-        status: subData.status,
-        max_members: plan.max_members,
-        features: plan.features,
-      });
+      const plan = subData.subscription_plans as any;
+      setSubscription({ plan_name: plan.name, status: subData.status, max_members: plan.max_members, features: plan.features });
     }
 
     const { data: users } = await supabase
@@ -76,7 +59,7 @@ export function AdminSettings() {
 
     if (users) {
       setMembers(users.map((u) => {
-        const p = u.profiles as unknown as { email: string; full_name: string };
+        const p = u.profiles as any;
         return { user_id: u.user_id, email: p.email, full_name: p.full_name, role: u.role };
       }));
     }
@@ -109,6 +92,16 @@ export function AdminSettings() {
     return (
       <div className="flex flex-col h-full bg-slate-50 items-center justify-center">
         <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full bg-slate-50 items-center justify-center p-6">
+        <AlertCircle size={48} className="text-red-400 mb-4" />
+        <p className="text-red-600 text-center">{error}</p>
+        <button onClick={() => navigate("/admin")} className="mt-4 text-amber-600 font-medium">Voltar</button>
       </div>
     );
   }
@@ -149,24 +142,13 @@ export function AdminSettings() {
               <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-medium capitalize">{subscription.status}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Máx. Membros</span><span className="font-medium">{subscription.max_members}</span></div>
             </div>
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-xs text-slate-500 mb-2 font-medium">Recursos disponíveis:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {subscription.features.map((f: string) => (
-                  <span key={f} className="px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                    {f.replace(/_/g, " ")}
-                  </span>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
           <h2 className="font-serif text-lg text-slate-900 mb-3 flex items-center gap-2">
-            <Users size={20} className="text-amber-500" /> Membros da Igreja
+            <Users size={20} className="text-amber-500" /> Membros ({members.length})
           </h2>
-
           <div className="space-y-3 mb-4">
             {members.map((m) => (
               <div key={m.user_id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
@@ -206,13 +188,9 @@ export function AdminSettings() {
                 <option value="member">Membro</option>
                 <option value="pastor">Pastor</option>
                 <option value="church_admin">Admin</option>
-                <option value="care_team">Equipe de Cuidado</option>
+                <option value="care_team">Equipe Cuidado</option>
               </select>
-              <button
-                type="submit"
-                disabled={!inviteEmail.trim()}
-                className="bg-amber-500 text-slate-900 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-amber-600"
-              >
+              <button type="submit" disabled={!inviteEmail.trim()} className="bg-amber-500 text-slate-900 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
                 Convidar
               </button>
             </div>
@@ -221,11 +199,11 @@ export function AdminSettings() {
 
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
           <h2 className="font-serif text-lg text-slate-900 mb-3 flex items-center gap-2">
-            <Shield size={20} className="text-amber-500" /> Funções (Roles)
+            <Shield size={20} className="text-amber-500" /> Funções
           </h2>
           <div className="text-sm text-slate-600 space-y-2">
-            <p><strong className="text-slate-800">super_admin</strong> — Acesso total ao sistema</p>
-            <p><strong className="text-slate-800">church_admin</strong> — Gerencia a igreja, membros, conteúdos</p>
+            <p><strong className="text-slate-800">super_admin</strong> — Acesso total</p>
+            <p><strong className="text-slate-800">church_admin</strong> — Gerencia igreja, membros, conteúdos</p>
             <p><strong className="text-slate-800">pastor</strong> — Acesso a casos de cuidado pastoral</p>
             <p><strong className="text-slate-800">care_team</strong> — Equipe de aconselhamento</p>
             <p><strong className="text-slate-800">member</strong> — Acesso básico ao app</p>

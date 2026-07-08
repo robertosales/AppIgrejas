@@ -64,21 +64,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function fetchProfile(userId: string) {
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('id, email, full_name, avatar_url, phone')
         .eq('id', userId)
         .single()
 
+      if (profileErr) console.error('profile error:', profileErr)
       if (profile) setProfile(profile)
 
-      const { data: cu } = await supabase
+      const { data: cuList, error: cuErr } = await supabase
         .from('church_users')
         .select('church_id, role')
         .eq('user_id', userId)
-        .maybeSingle()
 
-      if (cu) {
+      if (cuErr) {
+        console.error('church_users error:', cuErr)
+      } else if (cuList && cuList.length > 0) {
+        const cu = cuList[0]
+
         const { data: church } = await supabase
           .from('churches')
           .select('name')
@@ -90,6 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: cu.role,
           church_name: church?.name ?? 'Igreja',
         })
+      } else {
+        console.log('No church_users found for user:', userId)
       }
     } catch (err) {
       console.error('fetchProfile error:', err)

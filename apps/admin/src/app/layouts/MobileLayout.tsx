@@ -6,24 +6,26 @@ export function MobileLayout() {
   const hideBottomNav = ['/app/chat', '/app/agenda/'].some(path => location.pathname.includes(path));
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50 relative overflow-hidden">
-      {/* Main Content Area - Scrollable */}
-      <div className={`flex-1 overflow-y-auto no-scrollbar pb-24 ${hideBottomNav ? 'pb-0' : ''}`}>
-        <Outlet />
-      </div>
-
-      {/* Bottom Navigation */}
-      {!hideBottomNav && (
-        <div className="absolute bottom-0 left-0 w-full bg-white border-t border-slate-100 px-6 py-3 pb-8 sm:pb-3 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] z-50">
-          <div className="flex justify-between items-center">
-            <NavItem to="/app" icon={<Home size={22} />} label="Início" />
-            <NavItem to="/app/agenda" icon={<Calendar size={22} />} label="Agenda" />
-            <NavItem to="/app/prayer" icon={<Heart size={22} />} label="Oração" />
-            <NavItem to="/app/care-warning" icon={<MessageCircle size={22} />} label="Atendimento" />
-            <NavItem to="/app/profile" icon={<User size={22} />} label="Perfil" />
+    <div className="bg-gray-100 min-h-screen flex justify-center items-center font-sans text-slate-800">
+      <div className="w-full h-full sm:w-[400px] sm:h-[850px] sm:rounded-[40px] sm:shadow-2xl sm:overflow-hidden relative bg-gray-50 flex flex-col border-[12px] border-slate-900">
+        <div className="flex flex-col h-full w-full bg-slate-50 relative overflow-hidden">
+          <div className={`flex-1 overflow-y-auto no-scrollbar pb-24 ${hideBottomNav ? 'pb-0' : ''}`}>
+            <Outlet />
           </div>
+
+          {!hideBottomNav && (
+            <div className="absolute bottom-0 left-0 w-full bg-white border-t border-slate-100 px-6 py-3 pb-8 sm:pb-3 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] z-50">
+              <div className="flex justify-between items-center">
+                <NavItem to="/app" icon={<Home size={22} />} label="Início" />
+                <NavItem to="/app/agenda" icon={<Calendar size={22} />} label="Agenda" />
+                <NavItem to="/app/prayer" icon={<Heart size={22} />} label="Oração" />
+                <NavItem to="/app/care-warning" icon={<MessageCircle size={22} />} label="Atendimento" />
+                <NavItem to="/app/profile" icon={<User size={22} />} label="Perfil" />
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
